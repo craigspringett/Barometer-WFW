@@ -34,12 +34,27 @@ Open http://localhost:3000 — admin lives at http://localhost:3000/admin.
   the same filenames (`luke.svg`, `anja.svg`, …) or update
   `lib/team.ts`. PNG / JPG / WEBP all work.
 
-## Deploy
+## Deploy to Vercel
 
-The data store is a JSON file, so it needs a host with a persistent
-filesystem (Railway, Render, Fly.io, a VPS, etc). On Vercel, swap
-`lib/db.ts` for a KV/Postgres-backed implementation — the rest of the
-app is unchanged.
+1. Push this repo to GitHub (already done if you're reading this).
+2. Sign in to https://vercel.com with GitHub and click **Add New → Project**.
+3. Import `Barometer-WFW`. Vercel auto-detects Next.js — leave the defaults.
+4. Before deploying, expand **Environment Variables** and add:
+   - `ADMIN_PASSWORD` — your chosen password
+   - `ADMIN_SECRET` — any long random string
+5. Click **Deploy**.
+6. Once deployed, open the project → **Storage** tab → **Create Database** →
+   pick **Upstash for Redis** (Marketplace) → connect it to this project.
+   Vercel auto-injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` — the app
+   picks them up automatically. Click **Redeploy** once after connecting.
+
+That's it. The barometer is at the root URL, the admin lives at `/admin`.
+
+### Other hosts
+
+The app falls back to a local `data/db.json` file when no Redis env vars are
+present, so it also runs on anything with a persistent disk (Railway, Render,
+Fly.io, a VPS).
 
 ## Entry types
 

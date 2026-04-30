@@ -1,8 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { Redis } from "@upstash/redis";
 import type { DB, Entry } from "./types";
 
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
+const REDIS_KEY = "barometer:db";
 
 const DEFAULT_DB: DB = {
   entries: [],
@@ -14,6 +16,31 @@ const DEFAULT_DB: DB = {
   },
 };
 
+function redisUrl(): string | undefined {
+  return process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+}
+
+function redisToken(): string | undefined {
+  return process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+}
+
+const useRedis = Boolean(redisUrl() && redisToken());
+
+let _redis: Redis | null = null;
+function getRedis(): Redis {
+  if (!_redis) {
+    _redis = new Redis({ url: redisUrl()!, token: redisToken()! });
+  }
+  return _redis;
+}
+
+function normalize(parsed: Partial<DB> | null | undefined): DB {
+  return {
+    entries: parsed?.entries ?? [],
+    settings: { ...DEFAULT_DB.settings, ...(parsed?.settings ?? {}) },
+  };
+}
+
 async function ensureFile(): Promise<void> {
   try {
     await fs.access(DB_PATH);
@@ -24,20 +51,24 @@ async function ensureFile(): Promise<void> {
 }
 
 export async function readDB(): Promise<DB> {
+  if (useRedis) {
+    const data = await getRedis().get<DB>(REDIS_KEY);
+    return normalize(data);
+  }
   await ensureFile();
-  const raw = await fs.readFile(DB_PATH, "utf8");
   try {
-    const parsed = JSON.parse(raw) as Partial<DB>;
-    return {
-      entries: parsed.entries ?? [],
-      settings: { ...DEFAULT_DB.settings, ...(parsed.settings ?? {}) },
-    };
+    const raw = await fs.readFile(DB_PATH, "utf8");
+    return normalize(JSON.parse(raw) as Partial<DB>);
   } catch {
     return { ...DEFAULT_DB };
   }
 }
 
 export async function writeDB(db: DB): Promise<void> {
+  if (useRedis) {
+    await getRedis().set(REDIS_KEY, db);
+    return;
+  }
   await ensureFile();
   await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), "utf8");
 }
