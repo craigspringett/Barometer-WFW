@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Sora", "Inter", system-ui, sans-serif;
+}
+
+html, body {
+  background: #0B2D2E;
+  color: #EAF8F8;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(79,195,197,0.25), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(255,122,89,0.18), transparent 60%),
+    radial-gradient(800px 600px at 50% 110%, rgba(45,140,142,0.35), transparent 60%),
+    #0B2D2E;
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Subtle dotted brand pattern used as backdrop accents */
+.dot-grid {
+  background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+/* Glass surface */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+/* Shimmer band */
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.35) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* Liquid mercury fill for the barometer */
+.mercury {
+  background: linear-gradient(180deg, #7DD6D8 0%, #4FC3C5 35%, #23898B 100%);
+  box-shadow:
+    inset 0 0 24px rgba(255,255,255,0.25),
+    inset 0 -20px 40px rgba(0,0,0,0.25),
+    0 0 40px rgba(79,195,197,0.4);
+}
+
+.mercury-glow {
+  filter: drop-shadow(0 0 18px rgba(125,214,216,0.55));
+}
+
+.thermo-bulb {
+  background: radial-gradient(circle at 35% 35%, #A8E4E5, #4FC3C5 55%, #1B6A6C 100%);
+  box-shadow: inset 0 -10px 20px rgba(0,0,0,0.35), 0 0 28px rgba(79,195,197,0.5);
+}
+
+/* Hide scrollbar for horizontal scroll regions */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+input, select, textarea {
+  color-scheme: dark;
+}

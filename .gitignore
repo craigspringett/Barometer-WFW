@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+.env
+.env.local
+.DS_Store
+*.log
+# live data store — created at runtime
+data/db.json
+
