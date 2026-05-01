@@ -76,7 +76,7 @@ export function MemberCard({ member, stats, target, rank }: Props) {
         <div className="mt-2 flex items-center justify-between text-[11px] text-brand-200/70">
           <span>{Math.round(pct * 100)}% of {formatGBP(target)}</span>
           <span>
-            Pipeline {formatGBP(stats.pipeline)} · {stats.interviews} int.
+            Pipeline {formatGBP(stats.pipeline)} · {stats.interviews} vac.
           </span>
         </div>
       </div>

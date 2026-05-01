@@ -19,13 +19,13 @@ const TYPE_META: Record<
     chip: "bg-brand-500 text-ink",
   },
   pipeline: {
-    label: "Pipeline Deal",
-    helper: "Likely revenue still to close.",
+    label: "Pipeline / Interviews",
+    helper: "Pipeline deals and interviews in progress.",
     chip: "bg-brand-200/30 text-brand-100 border border-brand-200/40",
   },
   interview: {
-    label: "Interview / Vacancy",
-    helper: "Optional value (potential fee).",
+    label: "Hot Vacancies",
+    helper: "Live vacancies you're working — fee value optional.",
     chip: "bg-coral/80 text-ink",
   },
 };
@@ -154,8 +154,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
 
       <section className="max-w-7xl mx-auto px-6 mt-6 grid lg:grid-cols-4 gap-4">
         <Stat label="Confirmed" value={formatGBPFull(team.confirmed)} accent />
-        <Stat label="Pipeline" value={formatGBPFull(team.pipeline)} />
-        <Stat label="Interview value" value={formatGBPFull(team.interviewValue)} />
+        <Stat label="Pipeline / Interviews" value={formatGBPFull(team.pipeline)} />
+        <Stat label="Hot Vacancies value" value={formatGBPFull(team.interviewValue)} />
         <Stat
           label="Gap to team target"
           value={formatGBPFull(Math.max(db.settings.teamTarget - team.confirmed, 0))}
@@ -252,8 +252,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                   tab === "placement"
                     ? "Senior Dev — AcmeCo"
                     : tab === "pipeline"
-                    ? "Final stage — BetaCorp"
-                    : "Final interview — Gamma Ltd"
+                    ? "Final stage / interview — BetaCorp"
+                    : "Live vacancy — Senior Engineer, GammaCo"
                 }
                 className="mt-1 w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 focus:border-brand-400 outline-none text-white"
               />

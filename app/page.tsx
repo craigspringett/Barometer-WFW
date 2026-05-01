@@ -105,9 +105,9 @@ export default async function Page() {
             </div>
             <div className="space-y-3 text-sm">
               <Row label="Confirmed" value={formatGBPFull(team.confirmed)} accent />
-              <Row label="Pipeline" value={formatGBPFull(team.pipeline)} />
-              <Row label="Interview value" value={formatGBPFull(team.interviewValue)} />
-              <Row label="Interviews booked" value={`${team.interviews}`} />
+              <Row label="Pipeline / Interviews" value={formatGBPFull(team.pipeline)} />
+              <Row label="Hot Vacancies value" value={formatGBPFull(team.interviewValue)} />
+              <Row label="Hot vacancies open" value={`${team.interviews}`} />
               <hr className="border-white/10 my-2" />
               <Row
                 label="Gap to target"

@@ -114,8 +114,8 @@ export function Barometer({ confirmed, pipeline, interviewValue, target, prizeLa
         {/* Side stats */}
         <div className="flex flex-col gap-4 min-w-[180px]">
           <Stat label="Confirmed" value={formatGBPFull(confirmed)} swatch="bg-brand-400" big />
-          <Stat label="Pipeline" value={formatGBPFull(pipeline)} swatch="bg-brand-400/40" />
-          <Stat label="Interview value" value={formatGBPFull(interviewValue)} swatch="bg-coral/60" />
+          <Stat label="Pipeline / Interviews" value={formatGBPFull(pipeline)} swatch="bg-brand-400/40" />
+          <Stat label="Hot Vacancies" value={formatGBPFull(interviewValue)} swatch="bg-coral/60" />
           <Stat
             label="To target"
             value={formatGBPFull(Math.max(target - confirmed, 0))}

@@ -7,8 +7,8 @@ import { formatGBPFull } from "@/lib/calc";
 
 const TYPE_LABEL: Record<Entry["type"], string> = {
   placement: "Placement",
-  pipeline: "Pipeline",
-  interview: "Interview",
+  pipeline: "Pipeline / Interview",
+  interview: "Hot Vacancy",
 };
 
 const TYPE_STYLE: Record<Entry["type"], string> = {
