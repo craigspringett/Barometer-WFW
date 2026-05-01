@@ -40,6 +40,29 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  function resetForm() {
+    setEditingId(null);
+    setValue("");
+    setDescription("");
+    setDate(new Date().toISOString().slice(0, 10));
+    setMemberId(TEAM[0].id);
+    setError(null);
+  }
+
+  function startEdit(entry: Entry) {
+    setEditingId(entry.id);
+    setTab(entry.type);
+    setMemberId(entry.memberId);
+    setValue(String(entry.value ?? ""));
+    setDescription(entry.description ?? "");
+    setDate(entry.date ?? new Date().toISOString().slice(0, 10));
+    setError(null);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
 
   const team = useMemo(() => teamStats(db), [db]);
   const memberStats = useMemo(() => allMemberStats(db), [db]);
@@ -53,27 +76,27 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     router.refresh();
   }
 
-  async function addEntry(e: React.FormEvent) {
+  async function submitEntry(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
+      const payload = {
+        memberId,
+        type: tab,
+        value: Number(value || 0),
+        description,
+        date,
+      };
       const res = await fetch("/api/entries", {
-        method: "POST",
+        method: editingId ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          memberId,
-          type: tab,
-          value: Number(value || 0),
-          description,
-          date,
-        }),
+        body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
       setDb(j.db);
-      setValue("");
-      setDescription("");
+      resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -142,7 +165,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
       <section className="max-w-7xl mx-auto px-6 mt-8 grid lg:grid-cols-3 gap-6">
         {/* Add entry form */}
         <div className="lg:col-span-2 glass-strong rounded-2xl p-6">
-          <div className="flex flex-wrap gap-2 mb-5">
+          <div className="flex flex-wrap gap-2 mb-5 items-center">
             {(Object.keys(TYPE_META) as EntryType[]).map((t) => (
               <button
                 key={t}
@@ -156,10 +179,15 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 {TYPE_META[t].label}
               </button>
             ))}
+            {editingId && (
+              <span className="ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full bg-coral/20 border border-coral/40 text-coral text-[11px] uppercase tracking-widest font-bold">
+                Editing entry
+              </span>
+            )}
           </div>
           <p className="text-sm text-brand-200/70 mb-4">{TYPE_META[tab].helper}</p>
 
-          <form onSubmit={addEntry} className="grid md:grid-cols-2 gap-4">
+          <form onSubmit={submitEntry} className="grid md:grid-cols-2 gap-4">
             <div className="md:col-span-1">
               <label className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70">
                 Team member
@@ -237,13 +265,24 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               </div>
             )}
 
-            <div className="md:col-span-2 flex justify-end">
+            <div className="md:col-span-2 flex justify-end gap-3">
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-4 py-3 rounded-lg bg-white/10 hover:bg-white/15 transition text-white font-bold uppercase tracking-widest text-sm"
+                >
+                  Cancel
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={busy}
                 className="px-6 py-3 rounded-lg bg-brand-500 hover:bg-brand-400 disabled:opacity-50 transition text-ink font-bold uppercase tracking-widest text-sm"
               >
-                {busy ? "Adding…" : `Add ${TYPE_META[tab].label}`}
+                {busy
+                  ? editingId ? "Saving…" : "Adding…"
+                  : editingId ? "Save changes" : `Add ${TYPE_META[tab].label}`}
               </button>
             </div>
           </form>
@@ -261,10 +300,13 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
             )}
             {filtered.map((e) => {
               const m = memberById(e.memberId);
+              const isEditing = editingId === e.id;
               return (
                 <div
                   key={e.id}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-white/5"
+                  className={`flex items-center gap-3 p-3 rounded-xl transition ${
+                    isEditing ? "bg-coral/15 ring-1 ring-coral/40" : "bg-white/5"
+                  }`}
                 >
                   {m && <TeamAvatar member={m} size={36} ring={false} />}
                   <div className="flex-1 min-w-0">
@@ -281,6 +323,13 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                   <div className="font-display font-bold text-white">
                     {formatGBPFull(e.value)}
                   </div>
+                  <button
+                    onClick={() => startEdit(e)}
+                    className="text-[11px] uppercase tracking-widest font-bold text-brand-200 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg px-3 py-1.5"
+                    title="Edit"
+                  >
+                    Edit
+                  </button>
                   <button
                     onClick={() => removeEntry(e.id)}
                     className="text-xs text-brand-200/60 hover:text-coral px-2"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { addEntry, deleteEntry, readDB } from "@/lib/db";
+import { addEntry, deleteEntry, readDB, updateEntry } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { memberById } from "@/lib/team";
 import type { Entry, EntryType } from "@/lib/types";
@@ -50,6 +50,54 @@ export async function POST(request: Request) {
   };
   const db = await addEntry(entry);
   return NextResponse.json({ ok: true, entry, db });
+}
+
+export async function PATCH(request: Request) {
+  if (!isAuthed()) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  let body: Partial<Entry> & { id?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, error: "Bad JSON" }, { status: 400 });
+  }
+
+  const id = String(body.id ?? "").trim();
+  if (!id) {
+    return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
+  }
+
+  const patch: Partial<Entry> = {};
+  if (body.memberId !== undefined) {
+    const m = String(body.memberId).trim();
+    if (!memberById(m)) {
+      return NextResponse.json({ ok: false, error: "Unknown team member" }, { status: 400 });
+    }
+    patch.memberId = m;
+  }
+  if (body.type !== undefined) {
+    if (!VALID_TYPES.includes(body.type as EntryType)) {
+      return NextResponse.json({ ok: false, error: "Invalid type" }, { status: 400 });
+    }
+    patch.type = body.type as EntryType;
+  }
+  if (body.value !== undefined) {
+    const v = Number(body.value);
+    if (!Number.isFinite(v) || v < 0) {
+      return NextResponse.json({ ok: false, error: "Invalid value" }, { status: 400 });
+    }
+    patch.value = v;
+  }
+  if (body.description !== undefined) {
+    patch.description = String(body.description);
+  }
+  if (body.date !== undefined) {
+    patch.date = String(body.date);
+  }
+
+  const db = await updateEntry(id, patch);
+  return NextResponse.json({ ok: true, db });
 }
 
 export async function DELETE(request: Request) {

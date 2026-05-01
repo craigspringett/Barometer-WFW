@@ -80,6 +80,13 @@ export async function addEntry(entry: Entry): Promise<DB> {
   return db;
 }
 
+export async function updateEntry(id: string, patch: Partial<Entry>): Promise<DB> {
+  const db = await readDB();
+  db.entries = db.entries.map((e) => (e.id === id ? { ...e, ...patch, id: e.id } : e));
+  await writeDB(db);
+  return db;
+}
+
 export async function deleteEntry(id: string): Promise<DB> {
   const db = await readDB();
   db.entries = db.entries.filter((e) => e.id !== id);
