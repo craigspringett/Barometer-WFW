@@ -77,5 +77,10 @@ export function formatGBP(n: number): string {
 }
 
 export function formatGBPFull(n: number): string {
-  return `£${Math.round(n).toLocaleString("en-GB")}`;
+  if (!Number.isFinite(n)) return "£0";
+  const hasPence = Math.round(n * 100) % 100 !== 0;
+  return `£${n.toLocaleString("en-GB", {
+    minimumFractionDigits: hasPence ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`;
 }

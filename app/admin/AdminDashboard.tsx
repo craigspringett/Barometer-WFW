@@ -191,11 +191,11 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 <input
                   type="number"
                   min="0"
-                  step="100"
+                  step="0.01"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   required={tab !== "interview"}
-                  placeholder={tab === "interview" ? "Optional" : "e.g. 8500"}
+                  placeholder={tab === "interview" ? "Optional" : "e.g. 9214.53"}
                   className="mt-1 w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 focus:border-brand-400 outline-none text-white"
                 />
               </div>
