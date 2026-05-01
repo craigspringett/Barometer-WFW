@@ -106,10 +106,27 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
 
   const team = useMemo(() => teamStats(db), [db]);
   const memberStats = useMemo(() => allMemberStats(db), [db]);
-  const filtered = useMemo(
-    () => db.entries.filter((e) => e.type === tab),
-    [db.entries, tab]
-  );
+  const filtered = useMemo(() => {
+    const all = db.entries.filter((e) => e.type === tab);
+    if (tab !== "placement") return all;
+    // For confirmed placements, collapse 50/50 split pairs into a single row
+    // (under the consultant the deal was first logged against — earliest createdAt).
+    const sorted = [...all].sort((a, b) =>
+      (a.createdAt || "").localeCompare(b.createdAt || "")
+    );
+    const seen = new Set<string>();
+    const kept: Entry[] = [];
+    for (const e of sorted) {
+      if (e.splitId) {
+        if (seen.has(e.splitId)) continue;
+        seen.add(e.splitId);
+      }
+      kept.push(e);
+    }
+    return kept.sort((a, b) =>
+      (b.createdAt || "").localeCompare(a.createdAt || "")
+    );
+  }, [db.entries, tab]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -578,6 +595,15 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               const m = memberById(e.memberId);
               const isEditing = editingId === e.id;
               const partner = splitPartner(e);
+              const partnerEntry = e.splitId
+                ? db.entries.find(
+                    (x) => x.splitId === e.splitId && x.id !== e.id
+                  )
+                : null;
+              const showAsTotal = tab === "placement" && !!partnerEntry;
+              const displayValue = showAsTotal
+                ? e.value + (partnerEntry?.value ?? 0)
+                : e.value;
               return (
                 <div
                   key={e.id}
@@ -602,8 +628,15 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                       {new Date(e.date).toLocaleDateString("en-GB")}
                     </div>
                   </div>
-                  <div className="font-display font-bold text-white">
-                    {formatGBPFull(e.value)}
+                  <div className="text-right">
+                    <div className="font-display font-bold text-white">
+                      {formatGBPFull(displayValue)}
+                    </div>
+                    {showAsTotal && (
+                      <div className="text-[10px] text-brand-200/70">
+                        total · {formatGBPFull(e.value)} each
+                      </div>
+                    )}
                   </div>
                   {e.type === "interview" && (
                     <button
