@@ -30,6 +30,12 @@ const TYPE_META: Record<
   },
 };
 
+const STAGE_LABEL: Record<EntryType, string> = {
+  interview: "Hot Vacancy",
+  pipeline: "Interview",
+  placement: "Placement",
+};
+
 export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const router = useRouter();
   const [db, setDb] = useState<DB>(initialDb);
@@ -41,13 +47,13 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [convertingToPlacement, setConvertingToPlacement] = useState(false);
+  const [conversionTarget, setConversionTarget] = useState<EntryType | null>(null);
   const [split, setSplit] = useState(false);
   const [secondMemberId, setSecondMemberId] = useState<string>("");
 
   function resetForm() {
     setEditingId(null);
-    setConvertingToPlacement(false);
+    setConversionTarget(null);
     setValue("");
     setDescription("");
     setDate(new Date().toISOString().slice(0, 10));
@@ -59,7 +65,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
 
   function startEdit(entry: Entry) {
     setEditingId(entry.id);
-    setConvertingToPlacement(false);
+    setConversionTarget(null);
     setTab(entry.type);
     setMemberId(entry.memberId);
     setValue(String(entry.value ?? ""));
@@ -73,10 +79,10 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     }
   }
 
-  function markSuccessful(entry: Entry) {
+  function convertTo(entry: Entry, target: EntryType) {
     setEditingId(entry.id);
-    setConvertingToPlacement(true);
-    setTab("placement");
+    setConversionTarget(target);
+    setTab(target);
     setMemberId(entry.memberId);
     setValue(entry.value ? String(entry.value) : "");
     setDescription(entry.description ?? "");
@@ -142,7 +148,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
           memberId,
           type: tab,
           value:
-            (convertingToPlacement && partner) || convertingToSplit
+            (conversionTarget && partner) || convertingToSplit
               ? half
               : partner
               ? half
@@ -161,13 +167,13 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
         if (!meRes.ok) throw new Error(meJson.error || "Failed");
         let latest: DB = meJson.db;
 
-        if (convertingToPlacement && partner) {
+        if (conversionTarget && partner) {
           const partRes = await fetch("/api/entries", {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               id: partner.id,
-              type: "placement",
+              type: conversionTarget,
               value: half,
               description,
               date,
@@ -320,12 +326,12 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 {TYPE_META[t].label}
               </button>
             ))}
-            {editingId && !convertingToPlacement && (
+            {editingId && !conversionTarget && (
               <span className="ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full bg-coral/20 border border-coral/40 text-coral text-[11px] uppercase tracking-widest font-bold">
                 Editing entry
               </span>
             )}
-            {convertingToPlacement && (() => {
+            {conversionTarget && (() => {
               const orig = db.entries.find((x) => x.id === editingId);
               const partner =
                 orig?.splitId
@@ -336,9 +342,12 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               const partnerMember = partner
                 ? memberById(partner.memberId)
                 : null;
+              const sourceLabel = orig ? STAGE_LABEL[orig.type] : "";
+              const targetLabel = STAGE_LABEL[conversionTarget];
+              const emoji = conversionTarget === "placement" ? "🎉 " : "➜ ";
               return (
                 <span className="ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500 text-ink text-[11px] uppercase tracking-widest font-bold">
-                  🎉 Converting Vacancy → Placement
+                  {emoji}Converting {sourceLabel} → {targetLabel}
                   {partnerMember && ` (split with ${partnerMember.firstName})`}
                 </span>
               );
@@ -373,11 +382,11 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
             <div className="md:col-span-1 space-y-3">
               <div>
                 <label className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70">
-                  {convertingToPlacement && (() => {
+                  {conversionTarget && (() => {
                     const orig = db.entries.find((x) => x.id === editingId);
                     return orig?.splitId ? "Total fee (£)" : "Value (£)";
                   })()}
-                  {!convertingToPlacement && "Value (£)"}
+                  {!conversionTarget && "Value (£)"}
                 </label>
                 <input
                   type="number"
@@ -389,7 +398,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                   placeholder={tab === "interview" ? "Optional" : "e.g. 9214.53"}
                   className="mt-1 w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 focus:border-brand-400 outline-none text-white"
                 />
-                {convertingToPlacement && Number(value) > 0 && (() => {
+                {conversionTarget && Number(value) > 0 && (() => {
                   const orig = db.entries.find((x) => x.id === editingId);
                   if (!orig?.splitId) return null;
                   return (
@@ -527,8 +536,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               >
                 {busy
                   ? editingId ? "Saving…" : "Adding…"
-                  : convertingToPlacement
-                  ? "Mark as Placement"
+                  : conversionTarget
+                  ? `Move to ${STAGE_LABEL[conversionTarget]}`
                   : editingId ? "Save changes" : `Add ${TYPE_META[tab].label}`}
               </button>
             </div>
@@ -578,11 +587,20 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                   </div>
                   {e.type === "interview" && (
                     <button
-                      onClick={() => markSuccessful(e)}
+                      onClick={() => convertTo(e, "pipeline")}
+                      className="text-[11px] uppercase tracking-widest font-bold text-brand-100 bg-brand-500/20 hover:bg-brand-500/30 border border-brand-400/40 rounded-lg px-3 py-1.5"
+                      title="Interview booked — move to Pipeline / Interviews"
+                    >
+                      → Interview
+                    </button>
+                  )}
+                  {(e.type === "interview" || e.type === "pipeline") && (
+                    <button
+                      onClick={() => convertTo(e, "placement")}
                       className="text-[11px] uppercase tracking-widest font-bold text-ink bg-brand-500 hover:bg-brand-400 rounded-lg px-3 py-1.5"
                       title="Candidate placed — convert to placement"
                     >
-                      ✓ Successful
+                      ✓ Placed
                     </button>
                   )}
                   <button
