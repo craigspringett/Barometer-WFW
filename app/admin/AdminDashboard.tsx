@@ -41,11 +41,13 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [convertingToPlacement, setConvertingToPlacement] = useState(false);
   const [split, setSplit] = useState(false);
   const [secondMemberId, setSecondMemberId] = useState<string>("");
 
   function resetForm() {
     setEditingId(null);
+    setConvertingToPlacement(false);
     setValue("");
     setDescription("");
     setDate(new Date().toISOString().slice(0, 10));
@@ -57,11 +59,28 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
 
   function startEdit(entry: Entry) {
     setEditingId(entry.id);
+    setConvertingToPlacement(false);
     setTab(entry.type);
     setMemberId(entry.memberId);
     setValue(String(entry.value ?? ""));
     setDescription(entry.description ?? "");
     setDate(entry.date ?? new Date().toISOString().slice(0, 10));
+    setSplit(false);
+    setSecondMemberId("");
+    setError(null);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function markSuccessful(entry: Entry) {
+    setEditingId(entry.id);
+    setConvertingToPlacement(true);
+    setTab("placement");
+    setMemberId(entry.memberId);
+    setValue(entry.value ? String(entry.value) : "");
+    setDescription(entry.description ?? "");
+    setDate(new Date().toISOString().slice(0, 10));
     setSplit(false);
     setSecondMemberId("");
     setError(null);
@@ -237,9 +256,14 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 {TYPE_META[t].label}
               </button>
             ))}
-            {editingId && (
+            {editingId && !convertingToPlacement && (
               <span className="ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full bg-coral/20 border border-coral/40 text-coral text-[11px] uppercase tracking-widest font-bold">
                 Editing entry
+              </span>
+            )}
+            {convertingToPlacement && (
+              <span className="ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500 text-ink text-[11px] uppercase tracking-widest font-bold">
+                🎉 Converting Vacancy → Placement — set the final fee
               </span>
             )}
           </div>
@@ -332,9 +356,11 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                   <span className="text-sm font-semibold text-white">
                     Split this 50/50 with another consultant
                   </span>
-                  {split && Number(value) > 0 && (
+                  {split && (
                     <span className="ml-auto text-[11px] uppercase tracking-widest text-brand-200">
-                      Each gets {formatGBPFull(Number(value) / 2)}
+                      {Number(value) > 0
+                        ? `Each gets ${formatGBPFull(Number(value) / 2)}`
+                        : "Both consultants credited"}
                     </span>
                   )}
                 </label>
@@ -389,6 +415,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               >
                 {busy
                   ? editingId ? "Saving…" : "Adding…"
+                  : convertingToPlacement
+                  ? "Mark as Placement"
                   : editingId ? "Save changes" : `Add ${TYPE_META[tab].label}`}
               </button>
             </div>
@@ -436,6 +464,15 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                   <div className="font-display font-bold text-white">
                     {formatGBPFull(e.value)}
                   </div>
+                  {e.type === "interview" && (
+                    <button
+                      onClick={() => markSuccessful(e)}
+                      className="text-[11px] uppercase tracking-widest font-bold text-ink bg-brand-500 hover:bg-brand-400 rounded-lg px-3 py-1.5"
+                      title="Candidate placed — convert to placement"
+                    >
+                      ✓ Successful
+                    </button>
+                  )}
                   <button
                     onClick={() => startEdit(e)}
                     className="text-[11px] uppercase tracking-widest font-bold text-brand-200 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg px-3 py-1.5"
