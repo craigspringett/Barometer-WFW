@@ -66,7 +66,7 @@ export function Barometer({ confirmed, pipeline, interviewValue, target, prizeLa
               />
             ))}
 
-            {/* Interview value (faintest) */}
+            {/* Hot Vacancies layer (highest, top of stack) */}
             <div
               className="absolute left-0 right-0 bottom-0 transition-[height] duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
               style={{
@@ -75,7 +75,7 @@ export function Barometer({ confirmed, pipeline, interviewValue, target, prizeLa
                   "linear-gradient(180deg, rgba(255,200,87,0.55), rgba(255,122,89,0.45))",
               }}
             />
-            {/* Pipeline */}
+            {/* Pipeline / Interviews */}
             <div
               className="absolute left-0 right-0 bottom-0 transition-[height] duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
               style={{
@@ -97,11 +97,69 @@ export function Barometer({ confirmed, pipeline, interviewValue, target, prizeLa
               <span className="absolute right-4 bottom-3 w-2 h-2 rounded-full bg-white/50 animate-bubble" style={{ animationDelay: "2s" }} />
             </div>
 
+            {/* Hot Vacancies marker line (top) */}
+            {interviewValue > 0 && (
+              <div
+                className="absolute left-0 right-0 transition-[bottom] duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none"
+                style={{ bottom: mounted ? `${pctInterview * 100}%` : "0%" }}
+              >
+                <div className="h-0.5 bg-coral shadow-[0_0_8px_rgba(255,122,89,0.9)]" />
+              </div>
+            )}
+
+            {/* Pipeline marker line */}
+            {pipeline > 0 && (
+              <div
+                className="absolute left-0 right-0 transition-[bottom] duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none"
+                style={{ bottom: mounted ? `${pctPipeline * 100}%` : "0%" }}
+              >
+                <div className="h-0.5 bg-brand-200 shadow-[0_0_8px_rgba(168,228,229,0.8)]" />
+              </div>
+            )}
+
+            {/* Confirmed marker line (top of mercury) */}
+            {confirmed > 0 && (
+              <div
+                className="absolute left-0 right-0 transition-[bottom] duration-[1600ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none"
+                style={{ bottom: mounted ? `${pctConfirmed * 100}%` : "0%" }}
+              >
+                <div className="h-[3px] bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)]" />
+              </div>
+            )}
+
             {/* Target line */}
             <div className="absolute left-0 right-0 top-0 border-t-2 border-dashed border-white/40" />
             <div className="absolute -top-3 right-3 text-[10px] uppercase tracking-widest text-white/70 bg-black/30 rounded px-1.5 py-0.5">
               Target {formatGBP(target)}
             </div>
+          </div>
+
+          {/* Marker labels — pinned to right of thermometer at each layer */}
+          <div className="absolute -right-2 top-0 bottom-0 hidden md:block pointer-events-none">
+            {confirmed > 0 && (
+              <MarkerLabel
+                pct={pctConfirmed}
+                color="bg-white text-ink"
+                label={`Confirmed ${formatGBP(confirmed)}`}
+                animate={mounted}
+              />
+            )}
+            {pipeline > 0 && (
+              <MarkerLabel
+                pct={pctPipeline}
+                color="bg-brand-200 text-ink"
+                label={`+ Pipeline ${formatGBP(confirmed + pipeline)}`}
+                animate={mounted}
+              />
+            )}
+            {interviewValue > 0 && (
+              <MarkerLabel
+                pct={pctInterview}
+                color="bg-coral text-ink"
+                label={`+ Vacancies ${formatGBP(confirmed + pipeline + interviewValue)}`}
+                animate={mounted}
+              />
+            )}
           </div>
 
           {/* Bulb */}
@@ -137,6 +195,35 @@ export function Barometer({ confirmed, pipeline, interviewValue, target, prizeLa
           🌴 Target Hit · Trip is on
         </div>
       )}
+    </div>
+  );
+}
+
+function MarkerLabel({
+  pct,
+  color,
+  label,
+  animate,
+}: {
+  pct: number;
+  color: string;
+  label: string;
+  animate: boolean;
+}) {
+  return (
+    <div
+      className="absolute left-3 transition-[bottom] duration-[1500ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+      style={{
+        bottom: animate
+          ? `calc(${pct * 100}% - 10px)`
+          : "0%",
+      }}
+    >
+      <div
+        className={`whitespace-nowrap font-display text-[11px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md shadow-md ${color}`}
+      >
+        {label}
+      </div>
     </div>
   );
 }
