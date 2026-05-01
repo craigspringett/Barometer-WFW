@@ -116,21 +116,51 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     setError(null);
     try {
       if (editingId) {
-        const res = await fetch("/api/entries", {
+        const original = db.entries.find((x) => x.id === editingId);
+        const partner =
+          original?.splitId
+            ? db.entries.find(
+                (x) => x.splitId === original.splitId && x.id !== editingId
+              )
+            : null;
+
+        const enteredTotal = Number(value || 0);
+        const half = partner ? Math.round((enteredTotal / 2) * 100) / 100 : enteredTotal;
+
+        const meRes = await fetch("/api/entries", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             id: editingId,
             memberId,
             type: tab,
-            value: Number(value || 0),
+            value: convertingToPlacement && partner ? half : enteredTotal,
             description,
             date,
           }),
         });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error || "Failed");
-        setDb(j.db);
+        const meJson = await meRes.json();
+        if (!meRes.ok) throw new Error(meJson.error || "Failed");
+        let latest: DB = meJson.db;
+
+        if (convertingToPlacement && partner) {
+          const partRes = await fetch("/api/entries", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              id: partner.id,
+              type: "placement",
+              value: half,
+              description,
+              date,
+            }),
+          });
+          const partJson = await partRes.json();
+          if (!partRes.ok) throw new Error(partJson.error || "Partner update failed");
+          latest = partJson.db;
+        }
+
+        setDb(latest);
         resetForm();
         return;
       }
@@ -261,11 +291,24 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 Editing entry
               </span>
             )}
-            {convertingToPlacement && (
-              <span className="ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500 text-ink text-[11px] uppercase tracking-widest font-bold">
-                🎉 Converting Vacancy → Placement — set the final fee
-              </span>
-            )}
+            {convertingToPlacement && (() => {
+              const orig = db.entries.find((x) => x.id === editingId);
+              const partner =
+                orig?.splitId
+                  ? db.entries.find(
+                      (x) => x.splitId === orig.splitId && x.id !== editingId
+                    )
+                  : null;
+              const partnerMember = partner
+                ? memberById(partner.memberId)
+                : null;
+              return (
+                <span className="ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500 text-ink text-[11px] uppercase tracking-widest font-bold">
+                  🎉 Converting Vacancy → Placement
+                  {partnerMember && ` (split with ${partnerMember.firstName})`}
+                </span>
+              );
+            })()}
           </div>
           <p className="text-sm text-brand-200/70 mb-4">{TYPE_META[tab].helper}</p>
 
@@ -296,7 +339,11 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
             <div className="md:col-span-1 space-y-3">
               <div>
                 <label className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70">
-                  Value (£)
+                  {convertingToPlacement && (() => {
+                    const orig = db.entries.find((x) => x.id === editingId);
+                    return orig?.splitId ? "Total fee (£)" : "Value (£)";
+                  })()}
+                  {!convertingToPlacement && "Value (£)"}
                 </label>
                 <input
                   type="number"
@@ -308,6 +355,15 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                   placeholder={tab === "interview" ? "Optional" : "e.g. 9214.53"}
                   className="mt-1 w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 focus:border-brand-400 outline-none text-white"
                 />
+                {convertingToPlacement && Number(value) > 0 && (() => {
+                  const orig = db.entries.find((x) => x.id === editingId);
+                  if (!orig?.splitId) return null;
+                  return (
+                    <div className="mt-1 text-[11px] text-brand-200">
+                      Each consultant gets {formatGBPFull(Number(value) / 2)}
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <label className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70">
