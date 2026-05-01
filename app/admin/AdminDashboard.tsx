@@ -108,9 +108,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const memberStats = useMemo(() => allMemberStats(db), [db]);
   const filtered = useMemo(() => {
     const all = db.entries.filter((e) => e.type === tab);
-    if (tab !== "placement") return all;
-    // For confirmed placements, collapse 50/50 split pairs into a single row
-    // (under the consultant the deal was first logged against — earliest createdAt).
+    // Collapse 50/50 split pairs into a single row across all tabs
+    // (under the consultant the deal was first logged against).
     const sorted = [...all].sort((a, b) =>
       (a.createdAt || "").localeCompare(b.createdAt || "")
     );
@@ -600,7 +599,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                     (x) => x.splitId === e.splitId && x.id !== e.id
                   )
                 : null;
-              const showAsTotal = tab === "placement" && !!partnerEntry;
+              const showAsTotal = !!partnerEntry;
               const displayValue = showAsTotal
                 ? e.value + (partnerEntry?.value ?? 0)
                 : e.value;
@@ -632,7 +631,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                     <div className="font-display font-bold text-white">
                       {formatGBPFull(displayValue)}
                     </div>
-                    {showAsTotal && (
+                    {showAsTotal && displayValue > 0 && (
                       <div className="text-[10px] text-brand-200/70">
                         total · {formatGBPFull(e.value)} each
                       </div>
