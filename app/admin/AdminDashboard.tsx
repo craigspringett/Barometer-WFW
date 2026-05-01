@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { DB, Entry, EntryType } from "@/lib/types";
+import type { DB, Entry, EntryType, TeamMember } from "@/lib/types";
 import { TEAM, memberById } from "@/lib/team";
 import { Logo } from "@/components/Logo";
 import { TeamAvatar } from "@/components/TeamAvatar";
@@ -41,6 +41,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [split, setSplit] = useState(false);
+  const [secondMemberId, setSecondMemberId] = useState<string>("");
 
   function resetForm() {
     setEditingId(null);
@@ -48,6 +50,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     setDescription("");
     setDate(new Date().toISOString().slice(0, 10));
     setMemberId(TEAM[0].id);
+    setSplit(false);
+    setSecondMemberId("");
     setError(null);
   }
 
@@ -58,10 +62,21 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     setValue(String(entry.value ?? ""));
     setDescription(entry.description ?? "");
     setDate(entry.date ?? new Date().toISOString().slice(0, 10));
+    setSplit(false);
+    setSecondMemberId("");
     setError(null);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  }
+
+  function splitPartner(entry: Entry): TeamMember | null {
+    if (!entry.splitId) return null;
+    const other = db.entries.find(
+      (e) => e.splitId === entry.splitId && e.id !== entry.id
+    );
+    if (!other) return null;
+    return memberById(other.memberId) ?? null;
   }
 
   const team = useMemo(() => teamStats(db), [db]);
@@ -81,17 +96,60 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     setBusy(true);
     setError(null);
     try {
-      const payload = {
-        memberId,
-        type: tab,
-        value: Number(value || 0),
-        description,
-        date,
-      };
+      if (editingId) {
+        const res = await fetch("/api/entries", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: editingId,
+            memberId,
+            type: tab,
+            value: Number(value || 0),
+            description,
+            date,
+          }),
+        });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || "Failed");
+        setDb(j.db);
+        resetForm();
+        return;
+      }
+
+      const total = Number(value || 0);
+      if (split) {
+        if (!secondMemberId || secondMemberId === memberId) {
+          throw new Error("Pick a different second consultant for the split");
+        }
+        const half = Math.round((total / 2) * 100) / 100;
+        const splitId = crypto.randomUUID();
+        const base = { type: tab, description, date, splitId };
+        let latest: DB | null = null;
+        for (const m of [memberId, secondMemberId]) {
+          const res = await fetch("/api/entries", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...base, memberId: m, value: half }),
+          });
+          const j = await res.json();
+          if (!res.ok) throw new Error(j.error || "Failed");
+          latest = j.db;
+        }
+        if (latest) setDb(latest);
+        resetForm();
+        return;
+      }
+
       const res = await fetch("/api/entries", {
-        method: editingId ? "PATCH" : "POST",
+        method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
+        body: JSON.stringify({
+          memberId,
+          type: tab,
+          value: total,
+          description,
+          date,
+        }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
@@ -259,6 +317,55 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               />
             </div>
 
+            {!editingId && (
+              <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={split}
+                    onChange={(e) => {
+                      setSplit(e.target.checked);
+                      if (!e.target.checked) setSecondMemberId("");
+                    }}
+                    className="w-4 h-4 accent-brand-500"
+                  />
+                  <span className="text-sm font-semibold text-white">
+                    Split this 50/50 with another consultant
+                  </span>
+                  {split && Number(value) > 0 && (
+                    <span className="ml-auto text-[11px] uppercase tracking-widest text-brand-200">
+                      Each gets {formatGBPFull(Number(value) / 2)}
+                    </span>
+                  )}
+                </label>
+
+                {split && (
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70 mb-2">
+                      Second consultant
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      {TEAM.filter((m) => m.id !== memberId).map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setSecondMemberId(m.id)}
+                          className={`flex flex-col items-center gap-1 p-2 rounded-xl transition ${
+                            secondMemberId === m.id
+                              ? "bg-coral/20 ring-2 ring-coral"
+                              : "bg-white/5 hover:bg-white/10"
+                          }`}
+                        >
+                          <TeamAvatar member={m} size={36} ring={false} />
+                          <span className="text-[10px] text-white">{m.firstName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {error && (
               <div className="md:col-span-2 text-sm text-coral bg-coral/10 border border-coral/30 rounded-lg px-3 py-2">
                 {error}
@@ -301,6 +408,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
             {filtered.map((e) => {
               const m = memberById(e.memberId);
               const isEditing = editingId === e.id;
+              const partner = splitPartner(e);
               return (
                 <div
                   key={e.id}
@@ -310,9 +418,14 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 >
                   {m && <TeamAvatar member={m} size={36} ring={false} />}
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">
-                      {m?.firstName ?? "—"}
-                      <span className="ml-2 text-brand-200/70 font-normal">
+                    <div className="text-sm font-semibold text-white truncate flex items-center gap-2 flex-wrap">
+                      <span>{m?.firstName ?? "—"}</span>
+                      {partner && (
+                        <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold rounded-full px-2 py-0.5 bg-coral/20 text-coral border border-coral/40">
+                          50/50 with {partner.firstName}
+                        </span>
+                      )}
+                      <span className="text-brand-200/70 font-normal truncate">
                         {e.description || "—"}
                       </span>
                     </div>

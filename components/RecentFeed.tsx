@@ -20,6 +20,15 @@ const TYPE_STYLE: Record<Entry["type"], string> = {
 export function RecentFeed({ entries }: { entries: Entry[] }) {
   const recent = entries.slice(0, 12);
 
+  function partnerOf(entry: Entry) {
+    if (!entry.splitId) return null;
+    const other = entries.find(
+      (e) => e.splitId === entry.splitId && e.id !== entry.id
+    );
+    if (!other) return null;
+    return memberById(other.memberId) ?? null;
+  }
+
   if (!recent.length) {
     return (
       <div className="glass rounded-2xl p-6 text-center text-brand-200/70">
@@ -32,6 +41,7 @@ export function RecentFeed({ entries }: { entries: Entry[] }) {
     <div className="glass rounded-2xl p-2 divide-y divide-white/5">
       {recent.map((e) => {
         const member = memberById(e.memberId) ?? TEAM[0];
+        const partner = partnerOf(e);
         return (
           <div key={e.id} className="flex items-center gap-4 p-3">
             <TeamAvatar member={member} size={40} ring={false} />
@@ -41,6 +51,11 @@ export function RecentFeed({ entries }: { entries: Entry[] }) {
                 <span className={`text-[10px] uppercase tracking-widest font-bold rounded-full px-2 py-0.5 ${TYPE_STYLE[e.type]}`}>
                   {TYPE_LABEL[e.type]}
                 </span>
+                {partner && (
+                  <span className="text-[10px] uppercase tracking-widest font-bold rounded-full px-2 py-0.5 bg-coral/20 text-coral border border-coral/40">
+                    50/50 with {partner.firstName}
+                  </span>
+                )}
               </div>
               <div className="text-sm text-brand-100/80 truncate">
                 {e.description || "—"}

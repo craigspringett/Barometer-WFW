@@ -39,6 +39,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Invalid value" }, { status: 400 });
   }
 
+  const splitId =
+    typeof body.splitId === "string" && body.splitId.trim()
+      ? body.splitId.trim()
+      : undefined;
+
   const entry: Entry = {
     id: randomUUID(),
     memberId,
@@ -47,6 +52,7 @@ export async function POST(request: Request) {
     description,
     date,
     createdAt: new Date().toISOString(),
+    ...(splitId ? { splitId } : {}),
   };
   const db = await addEntry(entry);
   return NextResponse.json({ ok: true, entry, db });

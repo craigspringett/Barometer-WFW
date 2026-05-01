@@ -12,6 +12,8 @@ export interface Entry {
   date: string;
   /** ISO timestamp */
   createdAt: string;
+  /** Optional shared id linking the two halves of a 50/50 split deal. */
+  splitId?: string;
 }
 
 export interface TeamMember {
