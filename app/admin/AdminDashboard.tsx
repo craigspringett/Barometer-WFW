@@ -137,8 +137,14 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
           throw new Error("Pick a different second consultant for the split");
         }
 
-        const willBeSplit = !!partner || convertingToSplit;
-        const half = willBeSplit
+        // Halve only when (a) splitting a solo into two halves, or
+        // (b) converting a split deal's type — entered value is the new total.
+        // Otherwise (just editing one half of an existing split) the entered
+        // value is already that consultant's half — save it as-is and mirror
+        // it to the partner so the split stays 50/50.
+        const totalToHalve =
+          convertingToSplit || (conversionTarget && partner);
+        const myValue = totalToHalve
           ? Math.round((enteredTotal / 2) * 100) / 100
           : enteredTotal;
         const newSplitId = convertingToSplit ? crypto.randomUUID() : undefined;
@@ -147,12 +153,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
           id: editingId,
           memberId,
           type: tab,
-          value:
-            (conversionTarget && partner) || convertingToSplit
-              ? half
-              : partner
-              ? half
-              : enteredTotal,
+          value: myValue,
           description,
           date,
         };
@@ -168,13 +169,14 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
         let latest: DB = meJson.db;
 
         if (conversionTarget && partner) {
+          // Both halves change type; partner gets the same half value.
           const partRes = await fetch("/api/entries", {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               id: partner.id,
               type: conversionTarget,
-              value: half,
+              value: myValue,
               description,
               date,
             }),
@@ -183,13 +185,14 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
           if (!partRes.ok) throw new Error(partJson.error || "Partner update failed");
           latest = partJson.db;
         } else if (convertingToSplit) {
+          // Brand new partner half for a previously solo entry.
           const partRes = await fetch("/api/entries", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               memberId: secondMemberId,
               type: tab,
-              value: half,
+              value: myValue,
               description,
               date,
               splitId: newSplitId,
@@ -197,6 +200,23 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
           });
           const partJson = await partRes.json();
           if (!partRes.ok) throw new Error(partJson.error || "Failed to add partner");
+          latest = partJson.db;
+        } else if (partner) {
+          // Plain edit of an existing split half — keep the partner in sync
+          // (same value/type/description/date, partner's memberId is unchanged).
+          const partRes = await fetch("/api/entries", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              id: partner.id,
+              type: tab,
+              value: myValue,
+              description,
+              date,
+            }),
+          });
+          const partJson = await partRes.json();
+          if (!partRes.ok) throw new Error(partJson.error || "Partner update failed");
           latest = partJson.db;
         }
 
