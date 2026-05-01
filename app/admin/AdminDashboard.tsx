@@ -125,19 +125,37 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
             : null;
 
         const enteredTotal = Number(value || 0);
-        const half = partner ? Math.round((enteredTotal / 2) * 100) / 100 : enteredTotal;
+        const convertingToSplit = !partner && split && !!secondMemberId;
+
+        if (convertingToSplit && secondMemberId === memberId) {
+          throw new Error("Pick a different second consultant for the split");
+        }
+
+        const willBeSplit = !!partner || convertingToSplit;
+        const half = willBeSplit
+          ? Math.round((enteredTotal / 2) * 100) / 100
+          : enteredTotal;
+        const newSplitId = convertingToSplit ? crypto.randomUUID() : undefined;
+
+        const meBody: Record<string, unknown> = {
+          id: editingId,
+          memberId,
+          type: tab,
+          value:
+            (convertingToPlacement && partner) || convertingToSplit
+              ? half
+              : partner
+              ? half
+              : enteredTotal,
+          description,
+          date,
+        };
+        if (convertingToSplit) meBody.splitId = newSplitId;
 
         const meRes = await fetch("/api/entries", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            id: editingId,
-            memberId,
-            type: tab,
-            value: convertingToPlacement && partner ? half : enteredTotal,
-            description,
-            date,
-          }),
+          body: JSON.stringify(meBody),
         });
         const meJson = await meRes.json();
         if (!meRes.ok) throw new Error(meJson.error || "Failed");
@@ -157,6 +175,22 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
           });
           const partJson = await partRes.json();
           if (!partRes.ok) throw new Error(partJson.error || "Partner update failed");
+          latest = partJson.db;
+        } else if (convertingToSplit) {
+          const partRes = await fetch("/api/entries", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              memberId: secondMemberId,
+              type: tab,
+              value: half,
+              description,
+              date,
+              splitId: newSplitId,
+            }),
+          });
+          const partJson = await partRes.json();
+          if (!partRes.ok) throw new Error(partJson.error || "Failed to add partner");
           latest = partJson.db;
         }
 
@@ -397,56 +431,78 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               />
             </div>
 
-            {!editingId && (
-              <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={split}
-                    onChange={(e) => {
-                      setSplit(e.target.checked);
-                      if (!e.target.checked) setSecondMemberId("");
-                    }}
-                    className="w-4 h-4 accent-brand-500"
-                  />
-                  <span className="text-sm font-semibold text-white">
-                    Split this 50/50 with another consultant
-                  </span>
-                  {split && (
-                    <span className="ml-auto text-[11px] uppercase tracking-widest text-brand-200">
-                      {Number(value) > 0
-                        ? `Each gets ${formatGBPFull(Number(value) / 2)}`
-                        : "Both consultants credited"}
-                    </span>
-                  )}
-                </label>
+            {(() => {
+              const orig = editingId
+                ? db.entries.find((x) => x.id === editingId)
+                : null;
+              const existingPartner = orig?.splitId
+                ? memberById(
+                    db.entries.find(
+                      (x) => x.splitId === orig.splitId && x.id !== editingId
+                    )?.memberId ?? ""
+                  )
+                : null;
 
-                {split && (
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70 mb-2">
-                      Second consultant
-                    </div>
-                    <div className="grid grid-cols-5 gap-2">
-                      {TEAM.filter((m) => m.id !== memberId).map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setSecondMemberId(m.id)}
-                          className={`flex flex-col items-center gap-1 p-2 rounded-xl transition ${
-                            secondMemberId === m.id
-                              ? "bg-coral/20 ring-2 ring-coral"
-                              : "bg-white/5 hover:bg-white/10"
-                          }`}
-                        >
-                          <TeamAvatar member={m} size={36} ring={false} />
-                          <span className="text-[10px] text-white">{m.firstName}</span>
-                        </button>
-                      ))}
-                    </div>
+              if (existingPartner) {
+                return (
+                  <div className="md:col-span-2 rounded-xl border border-coral/30 bg-coral/10 p-4 text-sm text-coral">
+                    Already split 50/50 with <strong>{existingPartner.firstName}</strong>.
+                    Editing here only changes this side — edit {existingPartner.firstName}&apos;s entry separately if needed.
                   </div>
-                )}
-              </div>
-            )}
+                );
+              }
+
+              return (
+                <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={split}
+                      onChange={(e) => {
+                        setSplit(e.target.checked);
+                        if (!e.target.checked) setSecondMemberId("");
+                      }}
+                      className="w-4 h-4 accent-brand-500"
+                    />
+                    <span className="text-sm font-semibold text-white">
+                      Split this 50/50 with another consultant
+                    </span>
+                    {split && (
+                      <span className="ml-auto text-[11px] uppercase tracking-widest text-brand-200">
+                        {Number(value) > 0
+                          ? `Each gets ${formatGBPFull(Number(value) / 2)}`
+                          : "Both consultants credited"}
+                      </span>
+                    )}
+                  </label>
+
+                  {split && (
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70 mb-2">
+                        Second consultant
+                      </div>
+                      <div className="grid grid-cols-5 gap-2">
+                        {TEAM.filter((m) => m.id !== memberId).map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setSecondMemberId(m.id)}
+                            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition ${
+                              secondMemberId === m.id
+                                ? "bg-coral/20 ring-2 ring-coral"
+                                : "bg-white/5 hover:bg-white/10"
+                            }`}
+                          >
+                            <TeamAvatar member={m} size={36} ring={false} />
+                            <span className="text-[10px] text-white">{m.firstName}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {error && (
               <div className="md:col-span-2 text-sm text-coral bg-coral/10 border border-coral/30 rounded-lg px-3 py-2">
