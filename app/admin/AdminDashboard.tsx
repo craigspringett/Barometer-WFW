@@ -50,6 +50,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const [conversionTarget, setConversionTarget] = useState<EntryType | null>(null);
   const [split, setSplit] = useState(false);
   const [secondMemberId, setSecondMemberId] = useState<string>("");
+  const [logFilter, setLogFilter] = useState<string | null>(null);
 
   function resetForm() {
     setEditingId(null);
@@ -122,10 +123,21 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
       }
       kept.push(e);
     }
-    return kept.sort((a, b) =>
+    const ordered = kept.sort((a, b) =>
       (b.createdAt || "").localeCompare(a.createdAt || "")
     );
-  }, [db.entries, tab]);
+    if (!logFilter) return ordered;
+    return ordered.filter((e) => {
+      if (e.memberId === logFilter) return true;
+      if (e.splitId) {
+        const partnerEntry = db.entries.find(
+          (x) => x.splitId === e.splitId && x.id !== e.id
+        );
+        if (partnerEntry?.memberId === logFilter) return true;
+      }
+      return false;
+    });
+  }, [db.entries, tab, logFilter]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -581,9 +593,54 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
 
           <hr className="border-white/10 my-6" />
 
+          <div className="mb-4">
+            <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70 mb-2">
+              Filter log by consultant
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setLogFilter(null)}
+                className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl transition w-[64px] ${
+                  logFilter === null
+                    ? "bg-brand-500/20 ring-2 ring-brand-400"
+                    : "bg-white/5 hover:bg-white/10"
+                }`}
+              >
+                <div className="w-[36px] h-[36px] rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-ink font-display font-extrabold text-[10px] tracking-wider">
+                  ALL
+                </div>
+                <span className="text-[10px] text-white">Everyone</span>
+              </button>
+              {TEAM.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setLogFilter(m.id)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-xl transition w-[64px] ${
+                    logFilter === m.id
+                      ? "bg-brand-500/20 ring-2 ring-brand-400"
+                      : "bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <TeamAvatar member={m} size={36} ring={false} />
+                  <span className="text-[10px] text-white">{m.firstName}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70 mb-2">
               {TYPE_META[tab].label}s · {filtered.length}
+              {logFilter && (() => {
+                const m = memberById(logFilter);
+                return m ? (
+                  <span className="ml-2 normal-case tracking-normal text-brand-100">
+                    · {m.firstName} only
+                  </span>
+                ) : null;
+              })()}
             </div>
             {filtered.length === 0 && (
               <div className="text-sm text-brand-200/60 py-6 text-center">
