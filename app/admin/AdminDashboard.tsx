@@ -51,6 +51,8 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
   const [split, setSplit] = useState(false);
   const [secondMemberId, setSecondMemberId] = useState<string>("");
   const [logFilter, setLogFilter] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   function resetForm() {
     setEditingId(null);
@@ -103,6 +105,97 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     );
     if (!other) return null;
     return memberById(other.memberId) ?? null;
+  }
+
+  function buildSummary(member: TeamMember): string {
+    const mine = db.entries.filter((e) => e.memberId === member.id);
+
+    function rowsFor(type: EntryType) {
+      return mine
+        .filter((e) => e.type === type)
+        .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+        .map((e) => {
+          const partner = splitPartner(e);
+          const partnerEntry = e.splitId
+            ? db.entries.find((x) => x.splitId === e.splitId && x.id !== e.id)
+            : null;
+          const total = partnerEntry ? e.value + partnerEntry.value : e.value;
+          const dateStr = e.date
+            ? new Date(e.date).toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+              })
+            : "";
+          const desc = e.description?.trim() || "—";
+          const valStr =
+            type === "interview" && !e.value
+              ? ""
+              : partner
+              ? ` · ${formatGBPFull(e.value)} (50/50 with ${partner.firstName}, total ${formatGBPFull(total)})`
+              : ` · ${formatGBPFull(e.value)}`;
+          return `• ${desc}${valStr}${dateStr ? ` · ${dateStr}` : ""}`;
+        });
+    }
+
+    function totalFor(type: EntryType) {
+      return mine
+        .filter((e) => e.type === type)
+        .reduce((s, e) => s + (e.value || 0), 0);
+    }
+
+    const placements = rowsFor("placement");
+    const pipeline = rowsFor("pipeline");
+    const vacancies = rowsFor("interview");
+
+    const lines: string[] = [];
+    lines.push(`Hi ${member.firstName},`);
+    lines.push("");
+    lines.push(
+      "Here's a quick summary of what I've logged for you on the team barometer. Let me know if anything needs adding, removing, or correcting:"
+    );
+    lines.push("");
+
+    lines.push(
+      `CONFIRMED PLACEMENTS — ${formatGBPFull(totalFor("placement"))}`
+    );
+    lines.push(...(placements.length ? placements : ["• (none yet)"]));
+    lines.push("");
+
+    lines.push(
+      `PIPELINE / INTERVIEWS — ${formatGBPFull(totalFor("pipeline"))}`
+    );
+    lines.push(...(pipeline.length ? pipeline : ["• (none yet)"]));
+    lines.push("");
+
+    lines.push(
+      `HOT VACANCIES — ${vacancies.length} live${
+        totalFor("interview") > 0 ? `, ${formatGBPFull(totalFor("interview"))} potential` : ""
+      }`
+    );
+    lines.push(...(vacancies.length ? vacancies : ["• (none yet)"]));
+    lines.push("");
+
+    lines.push("Cheers!");
+    return lines.join("\n");
+  }
+
+  async function copySummary(text: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      setError("Couldn't copy — your browser blocked it");
+    }
   }
 
   const team = useMemo(() => teamStats(db), [db]);
@@ -594,13 +687,34 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
           <hr className="border-white/10 my-6" />
 
           <div className="mb-4">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70 mb-2">
-              Filter log by consultant
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70">
+                Filter log by consultant
+              </div>
+              {logFilter && (() => {
+                const m = memberById(logFilter);
+                if (!m) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSummaryOpen((s) => !s);
+                      setCopied(false);
+                    }}
+                    className="text-[11px] uppercase tracking-widest font-bold text-ink bg-brand-500 hover:bg-brand-400 rounded-lg px-3 py-1.5"
+                  >
+                    📋 {summaryOpen ? "Hide" : "Generate"} {m.firstName}&apos;s summary
+                  </button>
+                );
+              })()}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setLogFilter(null)}
+                onClick={() => {
+                  setLogFilter(null);
+                  setSummaryOpen(false);
+                }}
                 className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl transition w-[64px] ${
                   logFilter === null
                     ? "bg-brand-500/20 ring-2 ring-brand-400"
@@ -616,7 +730,10 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => setLogFilter(m.id)}
+                  onClick={() => {
+                    setLogFilter(m.id);
+                    setSummaryOpen(false);
+                  }}
                   className={`flex flex-col items-center gap-1 p-2 rounded-xl transition w-[64px] ${
                     logFilter === m.id
                       ? "bg-brand-500/20 ring-2 ring-brand-400"
@@ -628,6 +745,47 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                 </button>
               ))}
             </div>
+
+            {summaryOpen && logFilter && (() => {
+              const m = memberById(logFilter);
+              if (!m) return null;
+              const text = buildSummary(m);
+              return (
+                <div className="mt-4 rounded-2xl border border-brand-400/40 bg-brand-500/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <TeamAvatar member={m} size={28} ring={false} />
+                      <span className="text-sm font-semibold text-white">
+                        Summary for {m.firstName} — ready to paste into Teams
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copySummary(text)}
+                        className="text-[11px] uppercase tracking-widest font-bold text-ink bg-brand-500 hover:bg-brand-400 rounded-lg px-3 py-1.5"
+                      >
+                        {copied ? "✓ Copied" : "Copy to clipboard"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSummaryOpen(false)}
+                        className="text-[11px] uppercase tracking-widest font-bold text-brand-200/70 hover:text-white px-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    readOnly
+                    value={text}
+                    rows={Math.min(20, text.split("\n").length + 1)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="w-full font-mono text-[12px] leading-relaxed bg-black/30 border border-white/10 rounded-lg p-3 text-brand-100 focus:outline-none focus:border-brand-400 resize-y"
+                  />
+                </div>
+              );
+            })()}
           </div>
 
           <div className="space-y-2">
