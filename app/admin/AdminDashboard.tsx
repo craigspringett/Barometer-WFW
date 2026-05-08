@@ -806,14 +806,25 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               </div>
             )}
             {filtered.map((e) => {
-              const m = memberById(e.memberId);
               const isEditing = editingId === e.id;
-              const partner = splitPartner(e);
               const partnerEntry = e.splitId
                 ? db.entries.find(
                     (x) => x.splitId === e.splitId && x.id !== e.id
                   )
                 : null;
+
+              // When filtering by a specific consultant who's the *partner*
+              // on this deduped row, re-attribute the row to them so the
+              // avatar/name match the filter intent.
+              let displayMember = memberById(e.memberId);
+              let badgePartnerMember = partnerEntry
+                ? memberById(partnerEntry.memberId) ?? null
+                : null;
+              if (logFilter && partnerEntry && partnerEntry.memberId === logFilter) {
+                displayMember = memberById(partnerEntry.memberId);
+                badgePartnerMember = memberById(e.memberId) ?? null;
+              }
+
               const showAsTotal = !!partnerEntry;
               const displayValue = showAsTotal
                 ? e.value + (partnerEntry?.value ?? 0)
@@ -825,13 +836,13 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                     isEditing ? "bg-coral/15 ring-1 ring-coral/40" : "bg-white/5"
                   }`}
                 >
-                  {m && <TeamAvatar member={m} size={36} ring={false} />}
+                  {displayMember && <TeamAvatar member={displayMember} size={36} ring={false} />}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white truncate flex items-center gap-2 flex-wrap">
-                      <span>{m?.firstName ?? "—"}</span>
-                      {partner && (
+                      <span>{displayMember?.firstName ?? "—"}</span>
+                      {badgePartnerMember && (
                         <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold rounded-full px-2 py-0.5 bg-coral/20 text-coral border border-coral/40">
-                          50/50 with {partner.firstName}
+                          50/50 with {badgePartnerMember.firstName}
                         </span>
                       )}
                       <span className="text-brand-200/70 font-normal truncate">
