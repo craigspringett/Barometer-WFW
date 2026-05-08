@@ -101,6 +101,15 @@ export async function PATCH(request: Request) {
   if (body.date !== undefined) {
     patch.date = String(body.date);
   }
+  if (body.splitId !== undefined) {
+    const v = body.splitId;
+    if (typeof v === "string" && v.trim()) {
+      patch.splitId = v.trim();
+    } else if (v === null || v === "") {
+      // Allow explicit clearing of an orphaned split.
+      patch.splitId = undefined;
+    }
+  }
 
   const db = await updateEntry(id, patch);
   return NextResponse.json({ ok: true, db });
