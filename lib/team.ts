@@ -30,12 +30,13 @@ export const TEAM: TeamMember[] = [
     accent: "#23898B",
   },
   {
-    id: "isobel",
-    name: "Isobel Quinton-Holt",
-    firstName: "Isobel",
-    photo: "/team/isobel.jpg",
-    accent: "#FF7A59",
-  },
+{
+  id: "craig",
+  name: "Craig Springett",
+  firstName: "Craig",
+  photo: "/team/craig.png",
+  accent: "#FF7A59",
+},
 ];
 
 export function memberById(id: string): TeamMember | undefined {
