@@ -179,6 +179,99 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
     return lines.join("\n");
   }
 
+  function buildTeamSummary(type: EntryType): string {
+    const typeTitle =
+      type === "placement"
+        ? "CONFIRMED PLACEMENTS"
+        : type === "pipeline"
+        ? "PIPELINE / INTERVIEWS"
+        : "HOT VACANCIES";
+    const friendlyTitle =
+      type === "placement"
+        ? "confirmed placements"
+        : type === "pipeline"
+        ? "pipeline / interviews"
+        : "hot vacancies";
+
+    function partnerOf(entry: Entry) {
+      if (!entry.splitId) return null;
+      const other = db.entries.find(
+        (x) => x.splitId === entry.splitId && x.id !== entry.id
+      );
+      if (!other) return null;
+      return memberById(other.memberId) ?? null;
+    }
+
+    function rowFor(entry: Entry) {
+      const partner = partnerOf(entry);
+      const partnerEntry = entry.splitId
+        ? db.entries.find(
+            (x) => x.splitId === entry.splitId && x.id !== entry.id
+          )
+        : null;
+      const total = partnerEntry ? entry.value + partnerEntry.value : entry.value;
+      const dateStr = entry.date
+        ? new Date(entry.date).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+          })
+        : "";
+      const desc = entry.description?.trim() || "—";
+      const valStr =
+        type === "interview" && !entry.value
+          ? ""
+          : partner
+          ? ` · ${formatGBPFull(entry.value)} (50/50 with ${partner.firstName}, total ${formatGBPFull(total)})`
+          : ` · ${formatGBPFull(entry.value)}`;
+      return `• ${desc}${valStr}${dateStr ? ` · ${dateStr}` : ""}`;
+    }
+
+    const lines: string[] = [];
+    lines.push("Hi team,");
+    lines.push("");
+    lines.push(
+      `Here's the current ${friendlyTitle} summary for the whole team. Please check yours and let me know if anything needs adding, removing, or correcting:`
+    );
+    lines.push("");
+
+    let anyRows = false;
+    for (const member of TEAM) {
+      const theirs = db.entries
+        .filter((e) => e.memberId === member.id && e.type === type)
+        .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+      if (theirs.length === 0) {
+        lines.push(
+          `${member.firstName.toUpperCase()} — none yet`
+        );
+        lines.push("");
+        continue;
+      }
+
+      anyRows = true;
+      const total = theirs.reduce((s, e) => s + (e.value || 0), 0);
+      const header =
+        type === "interview"
+          ? `${member.firstName.toUpperCase()} — ${theirs.length} live${
+              total > 0 ? `, ${formatGBPFull(total)} potential` : ""
+            }`
+          : `${member.firstName.toUpperCase()} — ${theirs.length} ${
+              type === "placement" ? "placement" : "in pipeline"
+            }${theirs.length === 1 ? "" : type === "placement" ? "s" : ""} · ${formatGBPFull(total)} total`;
+      lines.push(header);
+      for (const e of theirs) lines.push(rowFor(e));
+      lines.push("");
+    }
+
+    if (!anyRows) {
+      lines.push(`Nothing logged in ${typeTitle.toLowerCase()} yet.`);
+      lines.push("");
+    }
+
+    lines.push("Cheers!");
+    return lines.join("\n");
+  }
+
   async function copySummary(text: string) {
     try {
       if (navigator.clipboard?.writeText) {
@@ -691,7 +784,7 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
               <div className="text-[11px] uppercase tracking-[0.2em] text-brand-200/70">
                 Filter log by consultant
               </div>
-              {logFilter && (() => {
+              {logFilter ? (() => {
                 const m = memberById(logFilter);
                 if (!m) return null;
                 return (
@@ -706,7 +799,18 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                     📋 {summaryOpen ? "Hide" : "Generate"} {m.firstName}&apos;s summary
                   </button>
                 );
-              })()}
+              })() : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSummaryOpen((s) => !s);
+                    setCopied(false);
+                  }}
+                  className="text-[11px] uppercase tracking-widest font-bold text-ink bg-brand-500 hover:bg-brand-400 rounded-lg px-3 py-1.5"
+                >
+                  📋 {summaryOpen ? "Hide" : "Generate"} team {TYPE_META[tab].label.toLowerCase()} summary
+                </button>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -780,6 +884,47 @@ export function AdminDashboard({ initialDb }: { initialDb: DB }) {
                     readOnly
                     value={text}
                     rows={Math.min(20, text.split("\n").length + 1)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="w-full font-mono text-[12px] leading-relaxed bg-black/30 border border-white/10 rounded-lg p-3 text-brand-100 focus:outline-none focus:border-brand-400 resize-y"
+                  />
+                </div>
+              );
+            })()}
+
+            {summaryOpen && !logFilter && (() => {
+              const text = buildTeamSummary(tab);
+              return (
+                <div className="mt-4 rounded-2xl border border-brand-400/40 bg-brand-500/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-ink font-display font-extrabold text-[9px] tracking-wider">
+                        ALL
+                      </div>
+                      <span className="text-sm font-semibold text-white">
+                        Team {TYPE_META[tab].label.toLowerCase()} summary — ready to paste into Teams
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copySummary(text)}
+                        className="text-[11px] uppercase tracking-widest font-bold text-ink bg-brand-500 hover:bg-brand-400 rounded-lg px-3 py-1.5"
+                      >
+                        {copied ? "✓ Copied" : "Copy to clipboard"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSummaryOpen(false)}
+                        className="text-[11px] uppercase tracking-widest font-bold text-brand-200/70 hover:text-white px-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    readOnly
+                    value={text}
+                    rows={Math.min(28, text.split("\n").length + 1)}
                     onFocus={(e) => e.currentTarget.select()}
                     className="w-full font-mono text-[12px] leading-relaxed bg-black/30 border border-white/10 rounded-lg p-3 text-brand-100 focus:outline-none focus:border-brand-400 resize-y"
                   />
